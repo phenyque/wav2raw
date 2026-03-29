@@ -124,7 +124,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 infile.read_exact(&mut buffer[..size as usize])?;
                 outfile.write_all(&buffer[..size as usize])?;
             }
-            // any other type of chunk -> ignore an advance file
+            // any other type of chunk -> ignore and advance file
             ChunkHeader {
                 chunk_signature: _,
                 size,
