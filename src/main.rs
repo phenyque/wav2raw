@@ -113,28 +113,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut outfile = File::create_new(args.outfile)?;
 
-    loop {
-        match read_chunk_header(&mut infile) {
-            Ok(chunkheader) => match chunkheader {
-                // data chunk -> copy to outfile
-                ChunkHeader {
-                    chunk_signature: 1635017060,
-                    size,
-                } => {
-                    let mut buffer = vec![0; size as usize];
-                    infile.read_exact(&mut buffer[..size as usize])?;
-                    outfile.write_all(&buffer[..size as usize])?;
-                }
-                // any other type of chunk -> ignore an advance file
-                ChunkHeader {
-                    chunk_signature: _,
-                    size,
-                } => {
-                    infile.seek(SeekFrom::Current(size as i64))?;
-                }
-            },
-            _ => {
-                break;
+    while let Ok(chunkheader) = read_chunk_header(&mut infile) {
+        match chunkheader {
+            // data chunk -> copy to outfile
+            ChunkHeader {
+                chunk_signature: 1635017060,
+                size,
+            } => {
+                let mut buffer = vec![0; size as usize];
+                infile.read_exact(&mut buffer[..size as usize])?;
+                outfile.write_all(&buffer[..size as usize])?;
+            }
+            // any other type of chunk -> ignore an advance file
+            ChunkHeader {
+                chunk_signature: _,
+                size,
+            } => {
+                infile.seek(SeekFrom::Current(size as i64))?;
             }
         }
     }
