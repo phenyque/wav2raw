@@ -1,6 +1,9 @@
 use clap::Parser;
 use std::fs::File;
 use std::io::Read;
+use std::io::Seek;
+use std::io::SeekFrom;
+use std::io::Write;
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -14,6 +17,26 @@ struct RiffWaveHeader {
     riff_signature: u32,
     filesize: u32,
     wave_signature: u32,
+}
+
+struct ChunkHeader {
+    chunk_signature: u32,
+    size: u32,
+}
+
+fn read_chunk_header(infile: &mut File) -> Result<ChunkHeader, std::io::Error> {
+    let mut buffer: [u8; 4] = [0; 4];
+
+    infile.read_exact(&mut buffer)?;
+    let chunk_signature = u32::from_le_bytes(buffer);
+
+    infile.read_exact(&mut buffer)?;
+    let size = u32::from_le_bytes(buffer);
+
+    Ok(ChunkHeader {
+        chunk_signature,
+        size,
+    })
 }
 
 #[derive(Debug)]
@@ -33,7 +56,7 @@ impl std::fmt::Display for Wave2RawError {
 
 impl std::error::Error for Wave2RawError {}
 
-fn read_header(infile: &mut File) -> RiffWaveHeader {
+fn read_file_header(infile: &mut File) -> RiffWaveHeader {
     let mut buffer: [u8; 4] = [0; 4];
 
     let riff_signature = match infile.read_exact(&mut buffer) {
@@ -84,9 +107,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{} {}", args.infile.display(), args.outfile.display());
 
     let mut infile = File::open(args.infile)?;
-    let fileheader = read_header(&mut infile);
+    let fileheader = read_file_header(&mut infile);
 
     validate_header_and_get_filesize(fileheader)?;
+
+    let mut outfile = File::create_new(args.outfile)?;
+
+    loop {
+        match read_chunk_header(&mut infile) {
+            Ok(chunkheader) => match chunkheader {
+                // data chunk -> copy to outfile
+                ChunkHeader {
+                    chunk_signature: 1635017060,
+                    size,
+                } => {
+                    let mut buffer = vec![0; size as usize];
+                    infile.read_exact(&mut buffer[..size as usize])?;
+                    outfile.write_all(&buffer[..size as usize])?;
+                }
+                // any other type of chunk -> ignore an advance file
+                ChunkHeader {
+                    chunk_signature: _,
+                    size,
+                } => {
+                    infile.seek(SeekFrom::Current(size as i64))?;
+                }
+            },
+            _ => {
+                break;
+            }
+        }
+    }
 
     Ok(())
 }
