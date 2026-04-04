@@ -1,5 +1,4 @@
 use clap::Parser;
-use std::error::Error;
 use std::fs::File;
 use std::io::Read;
 use std::io::Seek;
@@ -20,17 +19,13 @@ struct ChunkHeader {
 }
 
 fn read_chunk_header(infile: &mut File) -> Result<ChunkHeader, std::io::Error> {
-    let mut buffer: [u8; 4] = [0; 4];
+    let mut buffer: [u8; 8] = [0; 8];
 
     infile.read_exact(&mut buffer)?;
-    let chunk_signature = u32::from_le_bytes(buffer);
-
-    infile.read_exact(&mut buffer)?;
-    let size = u32::from_le_bytes(buffer);
 
     Ok(ChunkHeader {
-        chunk_signature,
-        size,
+        chunk_signature: u32::from_le_bytes(<[u8; 4]>::try_from(&buffer[..4]).unwrap()),
+        size: u32::from_le_bytes(<[u8; 4]>::try_from(&buffer[4..]).unwrap()),
     })
 }
 
@@ -55,22 +50,20 @@ const RIFF_MAGIC_NUM: u32 = 1179011410;
 const WAVE_MAGIC_NUM: u32 = 1163280727;
 const CHUNK_MAGIC_NUM: u32 = 1635017060;
 
-fn read_header(infile: &mut File) -> Result<(), Wav2RawError> {
-    let mut buffer: [u8; 12] = [0; 12];
-    let riff;
-    let wave;
+fn read_file_header(infile: &mut File) -> Result<(), Wav2RawError> {
+    let mut buffer: [u8; 4] = [0; 4];
 
-    match infile.read_exact(&mut buffer) {
-        Ok(()) => {
-            riff = u32::from_le_bytes(<[u8; 4]>::try_from(&buffer[..4]).unwrap());
-            wave = u32::from_le_bytes(<[u8; 4]>::try_from(&buffer[8..]).unwrap());
-        }
-        Err(_) => {
-            return Err(Wav2RawError::CantReadHeader);
-        }
-    }
+    let riff_header = match read_chunk_header(infile) {
+        Ok(chunkheader) => chunkheader,
+        Err(_) => return Err(Wav2RawError::CantReadHeader),
+    };
 
-    match (riff, wave) {
+    let wave = match infile.read_exact(&mut buffer) {
+        Ok(()) => u32::from_le_bytes(buffer),
+        Err(_) => return Err(Wav2RawError::CantReadHeader),
+    };
+
+    match (riff_header.chunk_signature, wave) {
         (RIFF_MAGIC_NUM, WAVE_MAGIC_NUM) => Ok(()),
         _ => Err(Wav2RawError::InvalidHeader),
     }
@@ -109,7 +102,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut infile = File::open(args.infile)?;
     let mut outfile = File::create_new(args.outfile)?;
 
-    read_header(&mut infile)?;
+    read_file_header(&mut infile)?;
 
     copy_data(&mut infile, &mut outfile)?;
 
