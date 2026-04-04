@@ -40,21 +40,21 @@ fn read_chunk_header(infile: &mut File) -> Result<ChunkHeader, std::io::Error> {
 }
 
 #[derive(Debug)]
-enum Wave2RawError {
+enum Wav2RawError {
     CantReadHeader,
     InvalidHeader,
 }
 
-impl std::fmt::Display for Wave2RawError {
+impl std::fmt::Display for Wav2RawError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match &self {
-            Wave2RawError::CantReadHeader => write!(f, "Can't read header from input file"),
-            Wave2RawError::InvalidHeader => write!(f, "Invalid header found in file"),
+            Wav2RawError::CantReadHeader => write!(f, "Can't read from input file"),
+            Wav2RawError::InvalidHeader => write!(f, "Invalid header found in file"),
         }
     }
 }
 
-impl std::error::Error for Wave2RawError {}
+impl std::error::Error for Wav2RawError {}
 
 fn read_file_header(infile: &mut File) -> RiffWaveHeader {
     let mut buffer: [u8; 4] = [0; 4];
@@ -79,7 +79,7 @@ fn read_file_header(infile: &mut File) -> RiffWaveHeader {
     }
 }
 
-fn validate_header_and_get_filesize(file_header: RiffWaveHeader) -> Result<u32, Wave2RawError> {
+fn validate_header(file_header: RiffWaveHeader) -> Result<u32, Wav2RawError> {
     match file_header {
         RiffWaveHeader {
             riff_signature: 1179011410,
@@ -90,13 +90,13 @@ fn validate_header_and_get_filesize(file_header: RiffWaveHeader) -> Result<u32, 
             riff_signature: 0,
             filesize: 0,
             wave_signature: 0,
-        } => Err(Wave2RawError::CantReadHeader),
+        } => Err(Wav2RawError::CantReadHeader),
         _ => {
             println!(
                 "riff: {}, filesize: {}, wave: {}",
                 file_header.riff_signature, file_header.filesize, file_header.wave_signature
             );
-            Err(Wave2RawError::InvalidHeader)
+            Err(Wav2RawError::InvalidHeader)
         }
     }
 }
@@ -109,7 +109,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut infile = File::open(args.infile)?;
     let fileheader = read_file_header(&mut infile);
 
-    validate_header_and_get_filesize(fileheader)?;
+    validate_header(fileheader)?;
 
     let mut outfile = File::create_new(args.outfile)?;
 
