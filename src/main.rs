@@ -13,12 +13,6 @@ struct Args {
     outfile: PathBuf,
 }
 
-struct RiffWaveHeader {
-    riff_signature: u32,
-    filesize: u32,
-    wave_signature: u32,
-}
-
 struct ChunkHeader {
     chunk_signature: u32,
     size: u32,
@@ -56,48 +50,27 @@ impl std::fmt::Display for Wav2RawError {
 
 impl std::error::Error for Wav2RawError {}
 
-fn read_file_header(infile: &mut File) -> RiffWaveHeader {
-    let mut buffer: [u8; 4] = [0; 4];
+const RIFF_MAGIC_NUM: u32 = 1179011410;
+const WAVE_MAGIC_NUM: u32 = 1163280727;
 
-    let riff_signature = match infile.read_exact(&mut buffer) {
-        Ok(()) => u32::from_le_bytes(buffer),
-        Err(_) => 0,
-    };
-    let filesize = match infile.read_exact(&mut buffer) {
-        Ok(()) => u32::from_le_bytes(buffer),
-        Err(_) => 0,
-    };
-    let wave_signature = match infile.read_exact(&mut buffer) {
-        Ok(()) => u32::from_le_bytes(buffer),
-        Err(_) => 0,
-    };
+fn read_header(infile: &mut File) -> Result<(), Wav2RawError> {
+    let mut buffer: [u8; 12] = [0; 12];
+    let riff;
+    let wave;
 
-    RiffWaveHeader {
-        riff_signature,
-        filesize,
-        wave_signature,
-    }
-}
-
-fn validate_header(file_header: RiffWaveHeader) -> Result<u32, Wav2RawError> {
-    match file_header {
-        RiffWaveHeader {
-            riff_signature: 1179011410,
-            filesize: file_size,
-            wave_signature: 1163280727,
-        } => Ok(file_size),
-        RiffWaveHeader {
-            riff_signature: 0,
-            filesize: 0,
-            wave_signature: 0,
-        } => Err(Wav2RawError::CantReadHeader),
-        _ => {
-            println!(
-                "riff: {}, filesize: {}, wave: {}",
-                file_header.riff_signature, file_header.filesize, file_header.wave_signature
-            );
-            Err(Wav2RawError::InvalidHeader)
+    match infile.read_exact(&mut buffer) {
+        Ok(()) => {
+            riff = u32::from_le_bytes(<[u8; 4]>::try_from(&buffer[..4]).unwrap());
+            wave = u32::from_le_bytes(<[u8; 4]>::try_from(&buffer[8..]).unwrap());
         }
+        Err(_) => {
+            return Err(Wav2RawError::CantReadHeader);
+        }
+    }
+
+    match (riff, wave) {
+        (RIFF_MAGIC_NUM, WAVE_MAGIC_NUM) => Ok(()),
+        _ => Err(Wav2RawError::InvalidHeader),
     }
 }
 
@@ -107,9 +80,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{} {}", args.infile.display(), args.outfile.display());
 
     let mut infile = File::open(args.infile)?;
-    let fileheader = read_file_header(&mut infile);
 
-    validate_header(fileheader)?;
+    read_header(&mut infile)?;
 
     let mut outfile = File::create_new(args.outfile)?;
 
