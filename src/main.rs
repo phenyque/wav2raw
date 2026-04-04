@@ -1,4 +1,5 @@
 use clap::Parser;
+use std::error::Error;
 use std::fs::File;
 use std::io::Read;
 use std::io::Seek;
@@ -52,6 +53,7 @@ impl std::error::Error for Wav2RawError {}
 
 const RIFF_MAGIC_NUM: u32 = 1179011410;
 const WAVE_MAGIC_NUM: u32 = 1163280727;
+const CHUNK_MAGIC_NUM: u32 = 1635017060;
 
 fn read_header(infile: &mut File) -> Result<(), Wav2RawError> {
     let mut buffer: [u8; 12] = [0; 12];
@@ -74,22 +76,12 @@ fn read_header(infile: &mut File) -> Result<(), Wav2RawError> {
     }
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = Args::parse();
-
-    println!("{} {}", args.infile.display(), args.outfile.display());
-
-    let mut infile = File::open(args.infile)?;
-
-    read_header(&mut infile)?;
-
-    let mut outfile = File::create_new(args.outfile)?;
-
-    while let Ok(chunkheader) = read_chunk_header(&mut infile) {
+fn copy_data(infile: &mut File, outfile: &mut File) -> Result<(), std::io::Error> {
+    while let Ok(chunkheader) = read_chunk_header(infile) {
         match chunkheader {
             // data chunk -> copy to outfile
             ChunkHeader {
-                chunk_signature: 1635017060,
+                chunk_signature: CHUNK_MAGIC_NUM,
                 size,
             } => {
                 let mut buffer = vec![0; size as usize];
@@ -105,6 +97,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
+
+    Ok(())
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args = Args::parse();
+
+    println!("{} {}", args.infile.display(), args.outfile.display());
+
+    let mut infile = File::open(args.infile)?;
+    let mut outfile = File::create_new(args.outfile)?;
+
+    read_header(&mut infile)?;
+
+    copy_data(&mut infile, &mut outfile)?;
 
     Ok(())
 }
