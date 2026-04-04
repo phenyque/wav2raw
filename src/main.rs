@@ -15,14 +15,14 @@ struct Args {
     outfile: PathBuf,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() {
     let args = Args::parse();
 
     let mut infile = match File::open(&args.infile) {
         Ok(file) => file,
         Err(_) => {
             println!("Can't open input file at {}.", args.infile.display());
-            return Ok(());
+            return;
         }
     };
 
@@ -30,24 +30,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Ok(file) => file,
         Err(_) => {
             println!("Can't open new output file at {}.", args.outfile.display());
-            return Ok(());
+            return;
         }
     };
 
     match read_file_header(&mut infile) {
         Err(Wav2RawError::CantReadHeader) => {
             println!(
-                "Can't read full RIFF header (first 12 bytes) from {}.",
+                "Can't read full RIFF/WAVE header (first 12 bytes) from {}.",
                 args.infile.display()
             );
-            return Ok(());
+            return;
         }
         Err(Wav2RawError::InvalidHeader) => {
             println!(
                 "RIFF header of input file {} is invalid.",
                 args.infile.display()
             );
-            return Ok(());
+            return;
         }
         _ => {}
     };
@@ -57,7 +57,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         args.infile.display(),
         args.outfile.display()
     );
-    copy_data(&mut infile, &mut outfile)?;
 
-    Ok(())
+    if copy_data(&mut infile, &mut outfile).is_err() {
+        println!("File io error during data copying.");
+    }
 }
