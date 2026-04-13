@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
-use std::io::Write;
+use std::io::copy;
 
 #[derive(Debug)]
 pub enum Wav2RawError {
@@ -68,9 +68,8 @@ pub fn copy_data(infile: &mut File, outfile: &mut File) -> Result<(), std::io::E
                 chunk_id: DATA_MAGIC_NUM,
                 size,
             } => {
-                let mut buffer = vec![0; size as usize];
-                infile.read_exact(&mut buffer[..size as usize])?;
-                outfile.write_all(&buffer[..size as usize])?;
+                let mut chunk_data = infile.by_ref().take(size as u64);
+                copy(&mut chunk_data, outfile)?;
             }
             // any other type of chunk -> ignore and advance file
             ChunkHeader { chunk_id: _, size } => {
