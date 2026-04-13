@@ -22,7 +22,7 @@ impl std::fmt::Display for Wav2RawError {
 impl std::error::Error for Wav2RawError {}
 
 struct ChunkHeader {
-    chunk_signature: u32,
+    chunk_id: u32,
     size: u32,
 }
 
@@ -32,7 +32,7 @@ fn read_chunk_header(infile: &mut File) -> Result<ChunkHeader, std::io::Error> {
     infile.read_exact(&mut buffer)?;
 
     Ok(ChunkHeader {
-        chunk_signature: u32::from_le_bytes(<[u8; 4]>::try_from(&buffer[..4]).unwrap()),
+        chunk_id: u32::from_le_bytes(<[u8; 4]>::try_from(&buffer[..4]).unwrap()),
         size: u32::from_le_bytes(<[u8; 4]>::try_from(&buffer[4..]).unwrap()),
     })
 }
@@ -54,7 +54,7 @@ pub fn read_file_header(infile: &mut File) -> Result<(), Wav2RawError> {
         Err(_) => return Err(Wav2RawError::CantReadHeader),
     };
 
-    match (riff_header.chunk_signature, wave) {
+    match (riff_header.chunk_id, wave) {
         (RIFF_MAGIC_NUM, WAVE_MAGIC_NUM) => Ok(()),
         _ => Err(Wav2RawError::InvalidHeader),
     }
@@ -65,7 +65,7 @@ pub fn copy_data(infile: &mut File, outfile: &mut File) -> Result<(), std::io::E
         match chunkheader {
             // data chunk -> copy to outfile
             ChunkHeader {
-                chunk_signature: DATA_MAGIC_NUM,
+                chunk_id: DATA_MAGIC_NUM,
                 size,
             } => {
                 let mut buffer = vec![0; size as usize];
@@ -73,10 +73,7 @@ pub fn copy_data(infile: &mut File, outfile: &mut File) -> Result<(), std::io::E
                 outfile.write_all(&buffer[..size as usize])?;
             }
             // any other type of chunk -> ignore and advance file
-            ChunkHeader {
-                chunk_signature: _,
-                size,
-            } => {
+            ChunkHeader { chunk_id: _, size } => {
                 infile.seek(SeekFrom::Current(size as i64))?;
             }
         }
