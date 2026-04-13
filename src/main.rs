@@ -7,22 +7,22 @@ use crate::wav2raw::read_file_header;
 use clap::Parser;
 use std::fs::File;
 use std::path::PathBuf;
+use std::process::ExitCode;
 
 #[derive(Parser)]
-#[clap()]
 struct Args {
     infile: PathBuf,
     outfile: PathBuf,
 }
 
-fn main() {
+fn main() -> ExitCode {
     let args = Args::parse();
 
     let mut infile = match File::open(&args.infile) {
         Ok(file) => file,
         Err(_) => {
             println!("Can't open input file at {}.", args.infile.display());
-            return;
+            return ExitCode::FAILURE;
         }
     };
 
@@ -30,7 +30,7 @@ fn main() {
         Ok(file) => file,
         Err(_) => {
             println!("Can't open new output file at {}.", args.outfile.display());
-            return;
+            return ExitCode::FAILURE;
         }
     };
 
@@ -40,14 +40,14 @@ fn main() {
                 "Can't read full RIFF/WAVE header (first 12 bytes) from {}.",
                 args.infile.display()
             );
-            return;
+            return ExitCode::FAILURE;
         }
         Err(Wav2RawError::InvalidHeader) => {
             println!(
                 "RIFF header of input file {} is invalid.",
                 args.infile.display()
             );
-            return;
+            return ExitCode::FAILURE;
         }
         _ => {}
     };
@@ -61,4 +61,6 @@ fn main() {
     if copy_data(&mut infile, &mut outfile).is_err() {
         println!("File io error during data copying.");
     }
+
+    ExitCode::SUCCESS
 }
